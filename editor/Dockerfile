@@ -1,135 +1,139 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
+LABEL maintainer="Stefan Verhoeven <s.verhoeven@esciencecenter.nl>"
 
-RUN apt-get update \
-  # Install locales package, and update locale
-  && apt-get install -y --no-install-recommends locales \
-  && locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 \
-  # Install python-software-properties package to make it easier to use PPAs.
-  && apt-get -y --no-install-recommends install \
-    software-properties-common python-software-properties \
-  # Add PPAs.
-  && add-apt-repository ppa:cartodb/gis \
-  && add-apt-repository ppa:cartodb/nodejs \
-  && add-apt-repository ppa:cartodb/postgresql-10 \
-  && add-apt-repository ppa:brightbox/ruby-ng \
-  # Install apt packages.
-  && apt-get update && apt-get -y --no-install-recommends install \
-    # build essentials
-    autoconf \
-    binutils-doc \
-    bison \
+# Configuring locales
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && apt-get install -y -q apt-utils software-properties-common locales && dpkg-reconfigure locales && \
+      locale-gen en_US.UTF-8 && \
+      update-locale LANG=en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
+RUN useradd -m -d /home/cartodb -s /bin/bash cartodb && \
+  apt-get install -y -q \
     build-essential \
-    flex \
-    # some utils
-    less vim.tiny \
-    # Git
+    autoconf \
+    tzdata \
+    automake \
+    libtool \
+    checkinstall \
+    unp \
+    zip \
+    unzip \
+    git-core \
     git \
-    # networking tools, because 'ip' is required by uuidtools gem to get mac addr
-    iproute2 \
-    # PostgreSQL
-    libpq5 \
-    libpq-dev \
-    postgresql-10 \
-    postgresql-plpython-10 \
-    postgresql-client-10 \
-    postgresql-client-common \
-    # GIS:
-    # - Proj
+    subversion \
+    curl \
+    libgeos-c1v5 \
+    libgeos-dev \
+    libjson-c-dev \
+    python-simplejson \
     proj-bin \
     proj-data \
     libproj-dev \
-    # - JSON
-    libjson0 \
-    libjson0-dev \
-    python-simplejson \
-    # - GEOS
-    libgeos-c1v5 \
-    libgeos-dev \
-    # - GDAL
     gdal-bin \
     libgdal-dev \
-    libgdal1-dev \
-    # Postgis
-    libxml2-dev \
-    postgis \
-    # NodeJS and dependencies
-    libcairo2-dev \
-    libgif-dev \
-    libjpeg-dev \
-    libpango1.0-dev \
-    libpixman-1-0 \
-    libpixman-1-dev \
-    nodejs \
-    # Ruby
-    ruby2.2 \
-    ruby2.2-dev \
-    ruby-bundler \
-    libreadline6-dev \
-    openssl \
-    # Python dependencies
+    postgresql-10 \
+    postgresql-client-10 \
+    liblwgeom-2.4-0 \
+    ca-certificates \
+    redis-server \
+    python2.7-dev \
+    python-setuptools \
     imagemagick \
+    libmapnik-dev \
+    mapnik-utils \
+    python-mapnik \
+    python-argparse \
+    python-gdal \
+    python-chardet \
     python-all-dev \
+    python-docutils \
+    openssl \
+    libreadline7 \
+    zlib1g \
+    zlib1g-dev \
+    libssl-dev \
+    libyaml-dev \
+    libsqlite3-dev \
+    sqlite3 \
+    libxml2-dev \
+    libxslt-dev \
+    libc6-dev \
+    ncurses-dev \
+    bison \
+    pkg-config \
+    libpq5 \
+    libpq-dev \
+    libcurl4-gnutls-dev \
+    libffi-dev \
+    libgdbm-dev \
+    gnupg \
+    libreadline6-dev \
+    libcairo2-dev \
+    libjpeg8-dev \
+    libpango1.0-dev \
+    libgif-dev \
+    libgmp-dev \
     libicu-dev \
-    unp \
-    zip \
-    # for user migration rake tasks
-    redis-tools \
-    # Other dependencies
-    unzip \
     wget \
-  # Install Pip.
-  && wget -O /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py \
-  && python /tmp/get-pip.py \
-  # Clean up.
-  && rm /tmp/get-pip.py \
-  && rm -rf /var/lib/apt/lists/*
+    net-tools \
+    ruby2.5-dev \
+    xz-utils \
+  --no-install-recommends && \
+  rm -rf /var/lib/apt/lists/*
 
-# Install Ruby utilities.
-RUN gem install compass
+# Install NodeJS
+RUN curl https://nodejs.org/dist/v10.15.3/node-v10.15.3-linux-x64.tar.xz |tar -Jxf - --strip-components=1 -C /usr && \
+  npm install -g grunt-cli && \
+  npm install -g npm@6
 
 # CartoDB/cartodb version
-ENV CARTODB_VERSION=4.21.0
+ENV CARTODB_VERSION=master
 
-# Download the Editor program, using the specified release tag.
-RUN git clone --recursive --branch v${CARTODB_VERSION} --depth 1 https://github.com/CartoDB/cartodb.git
+# Install CartoDB
+RUN git clone --recursive git://github.com/CartoDB/cartodb.git && \
+    cd cartodb && \
+    git checkout $CARTODB_VERSION
 
 WORKDIR /cartodb
 
-# Environment type.
-ARG RAILS_ENV=development
-ENV RAILS_ENV=$RAILS_ENV
+COPY config/grunt_production.json /cartodb/config/grunt_production.json
+    
+RUN npm install && \
+    rm -r /tmp/npm-* /root/.npm && \
+    curl https://bootstrap.pypa.io/get-pip.py | python && \
+    perl -pi -e 's/gdal==1\.10\.0/gdal==2.2.2/' python_requirements.txt && \
+    export CPLUS_INCLUDE_PATH=/usr/include/gdal  && \
+    export C_INCLUDE_PATH=/usr/include/gdal && \
+    pip install --no-binary :all: -r python_requirements.txt && \
+    echo "gem 'tzinfo-data'" >> Gemfile && \
+    gem install bundler --version=1.17.3 && gem install compass archive-tar-minitar rack && \
+    bundle update thin && \
+    /bin/bash -l -c 'bundle install'
 
-
-# Install Ruby dependencies.
-RUN bundle install \
-  # Install Python dependencies.
-  && CPLUS_INCLUDE_PATH=/usr/include/gdal \
-    C_INCLUDE_PATH=/usr/include/gdal \
-    PATH=$PATH:/usr/include/gdal \
-    pip install -r python_requirements.txt \
-  # Install Node dependencies
-  && npm install \
-  # Add dependencies of configuration merge script.
-  && npm install \
-    js-yaml \
-    yargs
-
-COPY config/* /cartodb/config/
+RUN cp config/grunt_development.json ./config/grunt_true.json && \
+    /bin/bash -l -c 'bundle exec grunt' \
+    && npm install \
+      js-yaml \
+      yargs
+    # && \
+    #rm -rf .git /root/.cache/pip node_modules
 
 # Compile static assets
-RUN PATH=$PATH:/cartodb/node_modules/grunt-cli/bin \
-    bundle exec grunt --environment=${RAILS_ENV} \
-  # Clean up.
-  && rm -rf \
-    /root/.cache \
-    /root/.bundle \
-    /root/.gem \
-    /root/.npm \
+RUN rm -rf \
+  /root/.cache \
+  /root/.bundle \
+  /root/.gem \
+  /root/.npm \
   && mkdir -p /cartodb/docker-entrypoint-util
 
 EXPOSE 3000
 
 # Copy resources.
+COPY config/app_config.yml /cartodb/config/app_config.yml
+COPY config/database.yml /cartodb/config/database.yml 
 COPY util/* /cartodb/docker-entrypoint-util/
 COPY docker-entrypoint.sh /cartodb/
 
@@ -137,16 +141,5 @@ COPY docker-entrypoint.sh /cartodb/
 # can be merged with the base by supplying their filenames as --app_config or --database option
 # arguments in the CMD.
 ENTRYPOINT [ \
-  "./docker-entrypoint.sh", \
-  "--app_config", "base.app_config.yml", \
-  "--database", "base.database.yml" \
-]
-
-# We merge the sample config files with the base configs by default.
-# Custom configuration may be used by extending this image as follows:
-# 1) COPY one or more config files into /cartodb/config/.
-# 2) Pass the filename(s) as --app_config or --database option arguments in the CMD.
-CMD [ \
-  "--app_config", "app_config.yml.sample", \
-  "--database", "database.yml.sample" \
+  "./docker-entrypoint.sh" \
 ]

@@ -40,15 +40,17 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # https://github.com/CartoDB/cartodb-postgresql version
-ENV CARTODB_POSTGRESQL_VERSION=0.24.0
+ENV CARTODB_POSTGRESQL_VERSION=0.28.1
 # https://github.com/CartoDB/crankshaft version
-ENV CRANKSHAFT_VERSION=0.8.1
+ENV CRANKSHAFT_VERSION=0.8.2
 # https://github.com/CartoDB/data-services
 ENV DATASERVICES_VERSION=0.0.2
 # https://github.com/CartoDB/dataservices-api
-ENV DATASERVICESAPI_VERSION=python-0.20.2
+ENV DATASERVICESAPI_VERSION=0.35.1-server
 # https://github.com/CartoDB/observatory-extension
 ENV OBSERVATORY_VERSION=1.9.0
+# CartoDB/cartodb version
+ENV CARTODB_VERSION=v4.29.0
 
 RUN curl https://bootstrap.pypa.io/get-pip.py | python \
   # CartoDB main postgresql extensions
@@ -90,6 +92,14 @@ RUN curl https://bootstrap.pypa.io/get-pip.py | python \
   && PGUSER=$POSTGRES_USER make deploy \
   # postgres initdb scripts
   && mkdir -p /docker-entrypoint-initdb.d
+
+# Install CartoDB
+RUN git clone --recursive git://github.com/CartoDB/cartodb.git && \
+    cd cartodb && \
+    git checkout $CARTODB_VERSION && \
+    # Install cartodb extension
+    cd lib/sql && \
+    PGUSER=$POSTGRES_USER  make install
 
 COPY initdb-postgis.sh /docker-entrypoint-initdb.d/01-postgis.sh
 RUN chmod +rx /docker-entrypoint-initdb.d/01-postgis.sh

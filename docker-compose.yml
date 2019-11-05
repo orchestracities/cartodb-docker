@@ -8,97 +8,104 @@ volumes:
 
 services:
   cartodb-postgis:
-    #image: sabman/ihmeuw-cartodb-docker_cartodb-postgis
+    image: orchestracities/cartodb-postgis:latest
     container_name: cartodb-postgis
-    build:
-      context: postgis
+    env_file:
+      - default.env
+    #build:
+    #  context: postgis
     volumes:
       - postgresdb:/var/lib/postgresql/data
   cartodb-redis:
-    #image: sabman/ihmeuw-cartodb-docker_cartodb-redis
+    image: orchestracities/cartodb-redis
     container_name: cartodb-redis
-    build:
-      context: redis
+    env_file:
+      - default.env
+    #build:
+    #  context: redis
     volumes:
       - redisdb:/data
   cartodb-sqlapi:
-    #image: sabman/ihmeuw-cartodb-docker_cartodb-sqlapi
+    image: orchestracities/cartodb-sqlapi:latest
+    env_file:
+      - default.env
     depends_on:
       - cartodb-postgis
       - cartodb-redis
     container_name: cartodb-sqlapi
-    build:
-      context: sqlapi
-    command: $ENVIRONMENT.js.example
+    #build:
+    #  context: sqlapi
+    #command: $ENVIRONMENT.js.example
+    command: ''
     environment:
       - ENVIRONMENT
   cartodb-mapsapi:
-    #image: sabman/ihmeuw-cartodb-docker_cartodb-mapsapi
+    image: orchestracities/cartodb-mapsapi:latest
+    env_file:
+      - default.env
     depends_on:
       - cartodb-postgis
       - cartodb-redis
     container_name: cartodb-mapsapi
-    build:
-      context: mapsapi
-    command: $ENVIRONMENT.js.example
-    environment:
-      - PUBLIC_HOST
-      - PUBLIC_PORT
-      - ENVIRONMENT
+    #build:
+    #  context: mapsapi
+    #command: $ENVIRONMENT.js.example
+    command: ''
+    # environment:
+    #   - PUBLIC_HOST
+    #   - PUBLIC_PORT
+    #   - ENVIRONMENT
   cartodb-editor:
-    image: sabman/ihmeuw-cartodb-docker_cartodb-editor
+    image: orchestracities/cartodb-editor:latest
+    env_file:
+      - default.env
+    environment:
+      - START_RESQUE_ONLY=0
+      - RAILS_ENV=development
     depends_on:
       - cartodb-postgis
       - cartodb-redis
       - cartodb-mapsapi
       - cartodb-sqlapi
     container_name: cartodb-editor
-    build:
-      context: editor
-      args:
-        - RAILS_ENV=$ENVIRONMENT
+    #build:
+    #  context: editor
+    #  args:
+    #    - RAILS_ENV=$ENVIRONMENT
     volumes:
       - public:/cartodb/public
       - ./migrated:/migrated
-    environment:
-      - PUBLIC_HOST
-      - PUBLIC_PORT
-      - PUBLIC_PROTOCOL
-      - DEFAULT_USER
-      - DEFAULT_PASSWORD
   cartodb-resque:
-    image: sabman/ihmeuw-cartodb-docker_cartodb-editor
+    image: orchestracities/cartodb-editor
     depends_on:
       - cartodb-postgis
       - cartodb-redis
       - cartodb-mapsapi
       - cartodb-sqlapi
+      - cartodb-editor
     container_name: cartodb-resque
+    env_file:
+      - default.env
     environment:
       - START_RESQUE_ONLY=1
-      - PUBLIC_HOST
-      - PUBLIC_PORT
-      - PUBLIC_PROTOCOL
-      - DEFAULT_USER
-      - DEFAULT_PASSWORD
-      - ENVIRONMENT
+      - RAILS_ENV=development
     volumes_from:
       - cartodb-editor
   cartodb-router:
-    #image: sabman/ihmeuw-cartodb-docker_cartodb-router
+    image: orchestracities/cartodb-router:latest
     depends_on:
       - cartodb-mapsapi
       - cartodb-sqlapi
       - cartodb-editor
     container_name: cartodb-router
-    build:
-      context: router
+    #build:
+    #  context: router
     volumes:
       - public:/public:ro
       - letsencrypt:/etc/letsencrypt
     ports:
       - 80:80
       - 443:443
-    environment:
-      - EMAIL
-      - DOMAINS
+    # environment:
+    #   - EMAIL
+    #   - DOMAINS

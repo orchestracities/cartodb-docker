@@ -1,13 +1,13 @@
-FROM buildpack-deps:16.04
+FROM buildpack-deps:18.04
 
-RUN curl -sL https://deb.nodesource.com/setup_9.x | bash - \
-  && apt-get update \
-  && apt-get -y --no-install-recommends install \
-    nodejs \
-  && rm -rf /var/lib/apt/lists/*
+# Install NodeJS
+RUN curl https://nodejs.org/dist/v10.15.3/node-v10.15.3-linux-x64.tar.xz |tar -Jxf - --strip-components=1 -C /usr && \
+  npm install -g grunt-cli && \
+  npm install -g npm@6 && \
+  rm -r /tmp/npm-* /root/.npm
 
 # CartoDB/CartoDB-SQL-API version
-ENV CARTODB_SQL_API_VERSION=2.2.1
+ENV CARTODB_SQL_API_VERSION=4.0.0
 
 RUN mkdir /CartoDB-SQL-API \
   && curl -L https://github.com/CartoDB/CartoDB-SQL-API/archive/${CARTODB_SQL_API_VERSION}.tar.gz \
